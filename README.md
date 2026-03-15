@@ -2,7 +2,7 @@ Methods:
 
 Mostly using the browser editor, after implementing most of my solution I tried out Claude code for the first time for this, I was impressed and was able to test out a lot of ideas but for optimization (and some accuracy) reasons ended up re-writing most things it wrote by hand.
 
-The biggest problems and a lot of my thinking was spent staring at the ungathered food in the gauntlet and fortress maps thinking about how to extract it.
+The biggest timesink on problems was spent staring at the ungathered food in the gauntlet and fortress maps thinking about how to extract it.
 
 Strategy:
 
