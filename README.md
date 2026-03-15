@@ -1,11 +1,14 @@
 Methods:
 
-Mostly using the browser editor, tried out Claude code for the first time for this, was impressed and was able to test out a lot of ideas but for optimization (and some accuracy) reasons ended up re-writing most things by hand.
+Mostly using the browser editor, after implementing most of my solution I tried out Claude code for the first time for this, I was impressed and was able to test out a lot of ideas but for optimization (and some accuracy) reasons ended up re-writing most things it wrote by hand.
 
+The biggest problems and a lot of my thinking was spent staring at the ungathered food in the gauntlet and fortress maps thinking about how to extract it.
 
 Strategy:
 
 Maintain pheromone gradients for both food sources and nest:
+  Direct reckoning seemed expensive when so many maps had a lot of walls, so ditch that and stick to pheromones only.
+  
   Value of current cell will always be the value of the nearest neighbor - 1, any ant can "extend" the trail of an adjacent pheromone gradient to the current location.
 
 Alternating decrements:
