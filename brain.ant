@@ -1,0 +1,354 @@
+; ── SWARM FORAGER ────────────────────────────
+; Random walk to find food, dead reckoning to
+; navigate home. Pheromone marks food for others.
+; Hit play, then try improving it!
+
+; ── Registers ── 
+.alias ret r7
+.alias dir r6
+.alias grid r4
+.alias wallmem r5
+
+; ── Pheromone ──
+.const FUD CH_RED   
+.const FUD_LONG CH_BLUE
+.const NST_LONG CH_GREEN
+.const NST CH_YELLOW
+
+.const fud_long_threshold 60
+.const nst_long_threshold 70
+.const roam_length 10
+
+.const wander_left_count 2
+.const wander_right_count 4
+.const wander_count 10
+.const right_hand_count 100
+.const abandon_pct 10
+
+
+
+.const N 1
+.const E 2
+.const S 3
+.const W 4
+
+.tag 0 FOOD_SEARCHER
+.tag 1 NEST_SEARCHER
+
+.const WALL 1
+
+
+main:
+  RANDOM dir 4       
+  ADD dir 1
+  RANDOM r0 2
+  RANDOM r0 3
+  RANDOM r0 4
+
+main_loop:
+  CARRYING
+  jne r0 0 carry_loop
+
+  CALL ret update_nst_pheromones
+  JMP search_food
+
+carry_loop:
+  CALL ret update_fud_pheromones
+  JMP search_nest
+
+search_food:
+  tag FOOD_SEARCHER
+  SENSE FOOD 
+  JNE r0 0 grab_food
+
+  JGT r3 0 roam
+  JMP traverse_food_gradient
+
+roam:
+  SUB r3 1
+  CALL ret momentum_wander
+  JMP move_and_restart
+
+traverse_food_gradient:
+  SMELL FUD
+  JEQ r0 0 traverse_food_gradient_end
+  SNIFF FUD r0 r1
+  SNIFF FUD HERE r2
+  SUB r1 grid
+  JGT r2 r1 start_roam_loop
+  set wallmem 0
+  JMP move_and_restart
+traverse_food_gradient_end:
+
+start_roam_loop:
+  SET r3 roam_length
+  CALL ret momentum_wander
+  JMP move_and_restart
+
+test_fud_long_gradient:
+  SMELL FUD_LONG
+  JEQ r0 0 test_fud_long_gradient_end
+
+  JMP move_and_restart
+test_fud_long_gradient_end:
+  
+wander_for_food:
+  CALL ret momentum_wander
+  JMP move_and_restart
+
+grab_food:
+  MOVE r0
+  set wallmem 0
+
+  XOR grid 1
+  SET dir r0
+  CALL ret update_nst_pheromones
+  CALL ret update_fud_pheromones
+  PICKUP
+  JMP main_loop
+  
+search_nest:
+  tag NEST_SEARCHER
+  SENSE NEST
+  JNE r0 0 deliver_food
+test_nst_gradient:
+  SMELL NST
+  JEQ r0 0 test_nst_gradient_end
+  set wallmem 0
+
+  JMP move_and_restart
+test_nst_gradient_end:
+
+test_nst_long_gradient:
+  SMELL NST_LONG
+  JEQ r0 0 test_nst_long_gradient_end
+  set wallmem 0
+  JMP move_and_restart
+test_nst_long_gradient_end:
+
+wander_for_nest:
+  CALL ret momentum_wander
+  JMP move_and_restart
+  
+deliver_food:
+  MOVE r0
+  set wallmem 0
+
+  XOR grid 1
+  set dir r0
+  DROP
+  ADD dir 1
+  MOD dir 4
+  ADD dir 1
+  JMP main_loop
+
+move_and_restart: 
+  SNIFF FUD HERE r1
+  MOVE r0
+  XOR grid 1
+  set dir r0
+  JMP main_loop
+
+
+;; FUNCTIONS ------------------------------------------------------
+;; UPDATE NST PHEROMONES (searching ants) ------------------------------------
+update_nst_pheromones:
+  SENSE NEST
+  JEQ r0 0 update_nst_propagate
+  MARK NST 255
+  JMP update_nst_done
+update_nst_propagate:
+  SMELL NST r0
+  JEQ r0 0 update_nst_done
+  SNIFF NST r0 r1
+  SNIFF NST HERE r2
+  SUB r1 r2
+  SUB r1 grid
+  MARK NST r1
+update_nst_done:
+  SNIFF NST HERE r1
+  JLT r1 nst_long_threshold update_nst_long_propagate
+  MARK NST_LONG 255
+  JMP update_nst_long_done
+update_nst_long_propagate:
+  SMELL NST_LONG r0
+  JEQ r0 0 update_nst_long_done
+  SNIFF NST_LONG r0 r1
+  SNIFF NST_LONG HERE r2
+  SUB r1 r2
+  SUB r1 grid
+  MARK NST_LONG r1
+update_nst_long_done:
+  JMP ret 
+
+;; UPDATE FUD PHEROMONES (carrying ants) ------------------------------------
+update_fud_pheromones:
+  SENSE FOOD
+  JEQ r0 0 update_fud_propagate
+  MARK FUD 255
+  JMP update_fud_done
+update_fud_propagate:
+  SMELL FUD r0
+  JEQ r0 0 update_fud_done
+  SNIFF FUD r0 r1
+  SNIFF FUD HERE r2
+  SUB r1 grid
+  SUB r1 r2
+  MARK FUD r1
+  JMP update_fud_done
+update_fud_done:
+  SNIFF FUD HERE r1
+  JLT r1 fud_long_threshold update_fud_long_propagate
+  MARK FUD_LONG 255
+  JMP update_fud_long_done
+update_fud_long_propagate:
+  SMELL FUD_LONG r0
+  JEQ r0 0 update_nst_long_done
+  SNIFF FUD_LONG r0 r1
+  SNIFF FUD_LONG HERE r2
+  SUB r1 r2
+  SUB r1 grid
+  MARK FUD_LONG r1
+update_fud_long_done:
+  JMP ret
+momentum_wander:
+  ID r2
+  JLT r2 wander_count mw_free_wander
+  JLT r2 right_hand_count wall_follow_right
+
+wall_follow_left:
+  JEQ wallmem 0 test_wall_ahead_left
+
+  PROBE wallmem r2
+  ; gap has appeared
+  JNE r2 WALL turn_into_gap_left  
+  ; not following wall
+  ; wall is ahead
+test_wall_ahead_left:
+  PROBE dir r2
+  JEQ r2 WALL mw_wall_ahead_left  
+  ; path clear, no gap, continue most of the time
+
+  JEQ wallmem 0 mw_free_wander
+  
+  RANDOM r2 abandon_pct
+  JEQ r2 0 mw_abandon_wall
+  JMP mw_done  
+
+wall_follow_right:
+  JEQ wallmem 0 test_wall_ahead_right
+  PROBE wallmem r2
+  JNE r2 WALL turn_into_gap_right
+test_wall_ahead_right:
+  PROBE dir r2
+  JEQ r2 WALL mw_wall_ahead_right
+
+  JEQ wallmem 0 mw_free_wander
+
+
+  RANDOM r2 abandon_pct
+  JEQ r2 0 mw_abandon_wall
+  JMP mw_done  
+
+turn_into_gap_right:
+  SET dir wallmem
+  SUB wallmem 2
+  MOD wallmem 4
+  ADD wallmem 1
+  JMP mw_done
+
+turn_into_gap_left:            
+  SET dir wallmem
+  MOD wallmem 4
+  ADD wallmem 1
+  JMP mw_done
+
+mw_abandon_wall:
+  SET wallmem 0
+  JMP mw_done
+
+mw_wall_ahead_left:              
+  SET wallmem dir
+  SUB dir 2
+  MOD dir 4
+  ADD dir 1                      
+  PROBE dir r2
+  JNE r2 WALL mw_done          
+
+  SET wallmem dir
+  SUB dir 2
+  MOD dir 4
+  ADD dir 1                      
+  PROBE dir r2
+  JNE r2 WALL mw_done
+
+  SET wallmem dir
+  SUB dir 2
+  MOD dir 4
+  ADD dir 1
+  JMP mw_done
+mw_wall_ahead_right:            
+  SET wallmem dir
+  MOD dir 4
+  ADD dir 1                      
+  PROBE dir r2
+  JNE r2 WALL mw_done          
+  ; in a corner, turn again
+  SET wallmem dir
+  MOD dir 4
+  ADD dir 1                      
+  PROBE dir r2
+  JNE r2 WALL mw_done
+  ; 3-way corner, turn again, has to be open this time
+  SET wallmem dir
+  MOD dir 4
+  ADD dir 1
+  JMP mw_done
+
+
+
+mw_free_wander:
+  PROBE dir r2
+  JEQ r2 WALL mw_fw_pick_turn    ; wall ahead: pick a side
+  RANDOM r1 100
+  JLT r1 wander_left_count mw_do_left
+  JLT r1 wander_right_count mw_do_right
+  JMP mw_done
+
+mw_fw_pick_turn:
+  RANDOM r1 2
+  JEQ r1 0 mw_do_left
+  JMP mw_do_right
+
+mw_do_left:
+  SUB dir 2
+  MOD dir 4
+  ADD dir 1
+  PROBE dir r2
+  JNE r2 WALL mw_done
+  ADD dir 1  
+  MOD dir 4
+  ADD dir 1
+  PROBE dir r2
+  JNE r2 WALL mw_done
+  MOD dir 4
+  ADD dir 1
+  JMP mw_done
+
+mw_do_right:
+  MOD dir 4
+  ADD dir 1
+  PROBE dir r2
+  JNE r2 WALL mw_done
+  ADD dir 1
+  MOD dir 4
+  ADD dir 1
+  PROBE dir r2
+  JNE r2 WALL mw_done
+  SUB dir 2
+  MOD dir 4
+  ADD dir 1
+
+mw_done:
+  SET r0 dir
+  JMP ret
