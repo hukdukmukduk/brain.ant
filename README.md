@@ -26,6 +26,16 @@ Ignore trails:
   If reaching the end of a trail and finding nothing, roam ignoring trails for 15ish ticks, to prevent going back/forth in one spot until the trail disappears.
 
 Search pattern:
-  Simple random walking doesn't explore the map very efficiently, instead search with a direction, and randomly turn around once every 25 ticks.
+  Simple random walking doesn't explore the map very efficiently, instead search with a direction, and randomly turn about once every 25 ticks.
 
   Also do wall following. This helps with both the brush/maze maps, but also seems to help with the maps with chambers/curved portions, where ants can bounce around a lot without wall following.
+
+Tuning parameters:
+  Some things I tuned were:
+  - At what main trail strength to start having the extension trail strength to decay
+    - The lower this number is the more extension is done, but higher chance that it doesn't lead an ant to the original trail and it gets stranded
+  - How long roam after reaching the end of a trail
+  - How often to turn when searching
+  - How long to wall-follow before "unsticking"
+
+  This was done manually but probably could have been automated.
